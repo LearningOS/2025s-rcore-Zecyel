@@ -54,6 +54,7 @@ lazy_static! {
         let mut tasks = [TaskControlBlock {
             task_cx: TaskContext::zero_init(),
             task_status: TaskStatus::UnInit,
+            syscall_count: [0; 5],
         }; MAX_APP_NUM];
         for (i, task) in tasks.iter_mut().enumerate() {
             task.task_cx = TaskContext::goto_restore(init_app_cx(i));
@@ -168,4 +169,40 @@ pub fn suspend_current_and_run_next() {
 pub fn exit_current_and_run_next() {
     mark_current_exited();
     run_next_task();
+}
+
+/// Get the current task ID
+pub fn get_current_task_id() -> usize {
+    let inner = TASK_MANAGER.inner.exclusive_access();
+    inner.current_task
+}
+
+/// Increment syscall count for current task
+pub fn increment_syscall_count(syscall_id: usize) {
+    let mut inner = TASK_MANAGER.inner.exclusive_access();
+    let current = inner.current_task;
+    let syscall_index = match syscall_id {
+        64 => 0,  // write
+        93 => 1,  // exit
+        124 => 2, // yield
+        169 => 3, // gettime
+        410 => 4, // trace
+        _ => return, // ignore unknown syscalls
+    };
+    inner.tasks[current].syscall_count[syscall_index] += 1;
+}
+
+/// Get syscall count for current task
+pub fn get_syscall_count(syscall_id: usize) -> usize {
+    let inner = TASK_MANAGER.inner.exclusive_access();
+    let current = inner.current_task;
+    let syscall_index = match syscall_id {
+        64 => 0,  // write
+        93 => 1,  // exit
+        124 => 2, // yield
+        169 => 3, // gettime
+        410 => 4, // trace
+        _ => return 0, // return 0 for unknown syscalls
+    };
+    inner.tasks[current].syscall_count[syscall_index]
 }
