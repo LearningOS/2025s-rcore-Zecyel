@@ -177,18 +177,22 @@ pub fn get_current_task_id() -> usize {
     inner.current_task
 }
 
-/// Increment syscall count for current task
-pub fn increment_syscall_count(syscall_id: usize) {
-    let mut inner = TASK_MANAGER.inner.exclusive_access();
-    let current = inner.current_task;
-    let syscall_index = match syscall_id {
+fn get_syscall_compressed_id(syscall_id: usize) -> usize {
+    match syscall_id {
         64 => 0,  // write
         93 => 1,  // exit
         124 => 2, // yield
         169 => 3, // gettime
         410 => 4, // trace
-        _ => return, // ignore unknown syscalls
-    };
+        _ => panic!("Unsupported syscall_id: {}", syscall_id),
+    }
+}
+
+/// Increment syscall count for current task
+pub fn increment_syscall_count(syscall_id: usize) {
+    let mut inner = TASK_MANAGER.inner.exclusive_access();
+    let current = inner.current_task;
+    let syscall_index = get_syscall_compressed_id(syscall_id);
     inner.tasks[current].syscall_count[syscall_index] += 1;
 }
 
@@ -196,13 +200,6 @@ pub fn increment_syscall_count(syscall_id: usize) {
 pub fn get_syscall_count(syscall_id: usize) -> usize {
     let inner = TASK_MANAGER.inner.exclusive_access();
     let current = inner.current_task;
-    let syscall_index = match syscall_id {
-        64 => 0,  // write
-        93 => 1,  // exit
-        124 => 2, // yield
-        169 => 3, // gettime
-        410 => 4, // trace
-        _ => return 0, // return 0 for unknown syscalls
-    };
+    let syscall_index = get_syscall_compressed_id(syscall_id);
     inner.tasks[current].syscall_count[syscall_index]
 }
